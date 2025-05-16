@@ -1,0 +1,84 @@
+name: Get ProjectV2 Single Select Field Option ID
+description: |
+  This action outputs the ProjectV2 Single Select Option ID
+  in the `single_select_option_id` using organization login name, project number,
+  single select field ID and the single select option name
+
+inputs:
+  pat_token:
+    description: GitHub PAT token
+    required: true
+  organization:
+    description: Organization login name
+    required: true
+  project_number:
+    description: ProjectV2 Number
+    required: true
+  single_select_field_id:
+    description: ProjectV2 Single Select Field ID
+    required: true
+  single_select_option_name:
+    description: ProjectV2 Single Select Option text
+    required: true
+
+outputs:
+  single_select_option_id:
+    description: ProjectV2 Single Select Option ID
+    value: "${{ steps.execution.outputs.option_id }}"
+
+runs:
+  using: "composite"
+  steps:
+    - id: execution
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.pat_token }}
+        script: |
+          const org = "${{ inputs.organization }}";
+          const p_number = ${{ inputs.project_number }};
+          const field_id = "${{ inputs.single_select_field_id }}";
+          const option_name = "${{ inputs.single_select_option_name }}";
+
+          const query = `
+            query {
+              organization(login: "${org}") {
+                projectV2(number: ${p_number}) {
+                  id
+                  fields(first: 20) {
+                    nodes {
+                      ... on ProjectV2SingleSelectField {
+                        id
+                        options {
+                          id
+                          name
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          `;
+
+          const result = await github.graphql(query);
+          const project = result.organization.projectV2;
+
+          const field = project.fields.nodes.find(
+            (f) => f.id === field_id
+          );
+
+          if (!field) {
+            core.setFailed("#{field_id} field ID not found!");
+          }
+
+          const selected_option = field.options.find(
+            (opt) => opt.name === option_name
+          );
+
+          if (!selected_option) {
+            core.setFailed("#{option_name} option not found!");
+          }
+
+          const option_id = selected_option.id
+          console.log("Option ID Found:", option_id);
+          core.setOutput("option_id", option_id);
